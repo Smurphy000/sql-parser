@@ -14,7 +14,7 @@ pub enum Keyword {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Word {
     value: String,
-    keyword: Keyword,
+    pub keyword: Keyword,
 }
 
 impl Word {
@@ -55,45 +55,19 @@ impl Tokenizer {
         self.cursor = 0;
     }
 
-    fn is_whitespace(c: char) -> bool {
-        unimplemented!()
-    }
-
     // This should take in a generic function which can eat characters of the same type
-    fn eat_while(&self) {}
-
-    // TODO can probably make eat generic similar to rustc lexer, where it take a comparitor function for continuing
-    fn eat(&self, it: &mut Peekable<Chars<'_>>) -> String {
+    fn eat_while(&self, it: &mut Peekable<Chars<'_>>, f: fn(char) -> bool) -> String {
         let mut ident = String::new();
-
         while let Some(&c) = it.peek() {
             match c {
-                c if c.is_alphabetic() => {
+                c if f(c) => {
                     ident.push(c);
                     it.next();
                 }
-                // no longer an alphabetic character, such as a space
                 _ => return ident,
             }
         }
         ident
-    }
-
-    fn eat_number(&self, it: &mut Peekable<Chars<'_>>) -> String {
-        let mut num = String::new();
-
-        while let Some(&c) = it.peek() {
-            match c {
-                c if c.is_numeric() => {
-                    num.push(c);
-                    it.next();
-                }
-                // no longer an alphabetic character, such as a space
-                ' ' => return num,
-                _ => {} // this is the error case
-            }
-        }
-        num
     }
 
     // fully processes input in one call, or make this return an iterator
@@ -105,7 +79,14 @@ impl Tokenizer {
             match c {
                 c if c.is_alphabetic() => {
                     // TODO words should be forced into same casing for matching purposes
-                    let word = self.eat(&mut it).to_uppercase();
+                    let word = self
+                        .eat_while(&mut it, |c| {
+                            if c.is_alphabetic() {
+                                return true;
+                            }
+                            false
+                        })
+                        .to_uppercase();
                     match word.as_str() {
                         // TODO add remaining match arms for keywords
                         "SELECT" => tokens.push(Token::Word(Word::new(word, Keyword::Select))),
@@ -117,12 +98,16 @@ impl Tokenizer {
                         // "FROM" => tokens.push(Token::Word(Word::new(word, Keyword::Order))),
                         _ => tokens.push(Token::Word(Word::new(word, Keyword::NoKeyword))),
                     }
-                    it.next();
+                    // it.next();
                 }
                 c if c.is_numeric() => {
-                    let number = self.eat_number(&mut it);
+                    let number = self.eat_while(&mut it, |c| {
+                        if c.is_numeric() {
+                            return true;
+                        }
+                        false
+                    });
                     tokens.push(Token::Number(number.parse::<i64>().unwrap()));
-                    it.next();
                 }
                 '*' => {
                     tokens.push(Token::Asterisk);
@@ -144,16 +129,27 @@ impl Tokenizer {
                     tokens.push(Token::RightParen);
                     it.next();
                 }
-                ' ' => {
-                    // TODO consume whitespace
+                ',' => {
+                    tokens.push(Token::Comma);
                     it.next();
+                }
+                ' ' => {
+                    let _ = self.eat_while(&mut it, |c| {
+                        if c == ' ' {
+                            return true;
+                        }
+
+                        false
+                    });
+                    tokens.push(Token::Whitespace);
                 }
                 _ => {
                     // TODO need to handle unknown tokens, or raise an error
                 }
             }
         }
-
+        // Finished consuming String, and an EOF
+        tokens.push(Token::EOF);
         tokens
     }
 
@@ -172,12 +168,13 @@ impl Tokenizer {
 
     // This function returns the next token, progressing the cursor
     // Currently progresses cursor using `nth` and adding the length of the token created to the cursor
-    pub fn next_iter(&mut self) -> Token {
+    fn next_iter(&mut self) -> Token {
         let mut token = Token::EOF;
         let mut it = self.input.chars().peekable();
         if self.cursor > 0 {
-            it.nth(self.cursor as usize);
+            it.nth((self.cursor - 1) as usize);
         }
+
         if self.cursor > self.input.len() as u32 {
             return Token::EOF;
         }
@@ -185,9 +182,15 @@ impl Tokenizer {
         while let Some(&c) = it.peek() {
             match c {
                 c if c.is_alphabetic() => {
-                    // TODO words should be forced into same casing for matching purposes
-                    let word = self.eat(&mut it).to_uppercase();
-                    self.cursor += word.len() as u32;
+                    let word = self
+                        .eat_while(&mut it, |c| {
+                            if c.is_alphabetic() {
+                                return true;
+                            }
+                            false
+                        })
+                        .to_uppercase();
+                    self.cursor += (word.len()) as u32;
                     match &word.as_str() {
                         // TODO add remaining match arms for keywords
                         &"SELECT" => token = Token::Word(Word::new(word, Keyword::Select)),
@@ -202,34 +205,57 @@ impl Tokenizer {
                     return token;
                 }
                 c if c.is_numeric() => {
-                    let number = self.eat_number(&mut it);
-                    self.cursor += number.len() as u32;
+                    let number = self.eat_while(&mut it, |c| {
+                        if c.is_numeric() {
+                            return true;
+                        }
+                        false
+                    });
+                    self.cursor += (number.len()) as u32;
                     token = Token::Number(number.parse::<i64>().unwrap());
                     return token;
                 }
                 '*' => {
                     token = Token::Asterisk;
                     self.cursor += 1;
+                    return token;
                 }
                 '-' => {
                     token = Token::Minus;
                     self.cursor += 1;
+                    return token;
                 }
                 '+' => {
                     token = Token::Plus;
                     self.cursor += 1;
+                    return token;
                 }
                 '(' => {
                     token = Token::LeftParen;
                     self.cursor += 1;
+                    return token;
                 }
                 ')' => {
                     token = Token::RightParen;
                     self.cursor += 1;
+                    return token;
+                }
+                ',' => {
+                    token = Token::Comma;
+                    self.cursor += 1;
+                    return token;
                 }
                 ' ' => {
-                    // TODO consume whitespace
-                    it.next();
+                    let space = self.eat_while(&mut it, |c| {
+                        if c == ' ' {
+                            return true;
+                        }
+
+                        false
+                    });
+                    token = Token::Whitespace;
+                    self.cursor += space.len() as u32;
+                    return token;
                 }
                 _ => {
                     // TODO need to handle unknown tokens, or raise an error
@@ -243,22 +269,70 @@ impl Tokenizer {
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
+    use crate::{tokenizer::Word, *};
 
     #[test]
-    fn it_works() {
+    fn multiple_token_types() {
         let mut tokenizer = Tokenizer::new();
-        tokenizer.init("select )(+-*".into());
+        tokenizer.init("select  )(+-*".into());
         let result = tokenizer.tokenize();
-        println!("{:?}", result);
+        assert_eq!(
+            result,
+            vec![
+                Token::Word(Word::new("SELECT".into(), Keyword::Select)),
+                Token::Whitespace,
+                Token::RightParen,
+                Token::LeftParen,
+                Token::Plus,
+                Token::Minus,
+                Token::Asterisk,
+                Token::EOF
+            ]
+        );
+    }
 
+    #[test]
+    fn equation() {
+        let mut tokenizer = Tokenizer::new();
         tokenizer.init("1234 + 4567".into());
         let result = tokenizer.tokenize();
-        println!("{:?}", result);
 
+        assert_eq!(
+            result,
+            vec![
+                Token::Number(1234),
+                Token::Whitespace,
+                Token::Plus,
+                Token::Whitespace,
+                Token::Number(4567),
+                Token::EOF
+            ]
+        );
+    }
+
+    #[test]
+    fn query_like() {
+        let mut tokenizer = Tokenizer::new();
         tokenizer.init("select somecol + 1 from sometable".into());
         let result = tokenizer.tokenize();
-        println!("{:?}", result);
+
+        assert_eq!(
+            result,
+            vec![
+                Token::Word(Word::new("SELECT".into(), Keyword::Select)),
+                Token::Whitespace,
+                Token::Word(Word::new("SOMECOL".into(), Keyword::NoKeyword)),
+                Token::Whitespace,
+                Token::Plus,
+                Token::Whitespace,
+                Token::Number(1),
+                Token::Whitespace,
+                Token::Word(Word::new("FROM".into(), Keyword::From)),
+                Token::Whitespace,
+                Token::Word(Word::new("SOMETABLE".into(), Keyword::NoKeyword)),
+                Token::EOF
+            ]
+        );
     }
 
     #[test]

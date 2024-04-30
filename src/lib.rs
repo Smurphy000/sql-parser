@@ -1,5 +1,7 @@
 use std::{fmt, io::Error, rc::Rc};
+mod parser;
 mod tokenizer;
+use crate::parser::Parser;
 use crate::tokenizer::{Keyword, Token, Tokenizer};
 
 #[derive(Debug)]
@@ -24,28 +26,28 @@ impl fmt::Display for Query {
 }
 
 // Parser should be pub since it is the exposed API to parse SQL
-pub struct Parser {
-    tokenizer: Tokenizer,
-    look_ahead: Option<Token>,
-}
+// pub struct Parser {
+//     tokenizer: Tokenizer,
+//     look_ahead: Option<Token>,
+// }
 
-impl Parser {
-    pub fn new() -> Self {
-        Self {
-            tokenizer: Tokenizer::new(),
-            look_ahead: None,
-        }
-    }
+// impl Parser {
+//     pub fn new() -> Self {
+//         Self {
+//             tokenizer: Tokenizer::new(),
+//             look_ahead: None,
+//         }
+//     }
 
-    pub fn parse(&mut self, input: &str) {
-        unimplemented!()
-    }
-}
+//     pub fn parse(&mut self, input: &str) {
+//         unimplemented!()
+//     }
+// }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn it_works() {}
-}
+//     #[test]
+//     fn it_works() {}
+// }
