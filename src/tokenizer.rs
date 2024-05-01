@@ -81,7 +81,7 @@ impl Tokenizer {
                     // TODO words should be forced into same casing for matching purposes
                     let word = self
                         .eat_while(&mut it, |c| {
-                            if c.is_alphabetic() {
+                            if c.is_alphanumeric() || c == '_' {
                                 return true;
                             }
                             false
@@ -184,7 +184,7 @@ impl Tokenizer {
                 c if c.is_alphabetic() => {
                     let word = self
                         .eat_while(&mut it, |c| {
-                            if c.is_alphabetic() {
+                            if c.is_alphanumeric() || c == '_' {
                                 return true;
                             }
                             false
@@ -313,7 +313,7 @@ mod tests {
     #[test]
     fn query_like() {
         let mut tokenizer = Tokenizer::new();
-        tokenizer.init("select somecol + 1 from sometable".into());
+        tokenizer.init("select somecol + 1, col_2 from sometable".into());
         let result = tokenizer.tokenize();
 
         assert_eq!(
@@ -326,6 +326,9 @@ mod tests {
                 Token::Plus,
                 Token::Whitespace,
                 Token::Number(1),
+                Token::Comma,
+                Token::Whitespace,
+                Token::Word(Word::new("COL_2".into(), Keyword::NoKeyword)),
                 Token::Whitespace,
                 Token::Word(Word::new("FROM".into(), Keyword::From)),
                 Token::Whitespace,
