@@ -22,6 +22,12 @@ pub struct Ident {
     value: String,
 }
 
+impl Ident {
+    pub fn new(value: String) -> Self {
+        Self { value }
+    }
+}
+
 #[derive(Debug)]
 pub struct Table {
     // TODO this currently does not support Qualified table names separated by '.'
@@ -41,7 +47,7 @@ impl Table {
 pub struct Select {
     selection: Option<Expr>,     // filter like in a where clause
     projection: Vec<SelectItem>, // columns being selected
-    from: Table,                 // table being queried
+    from: Option<Table>,         // table being queried
 }
 
 impl Select {
@@ -49,7 +55,7 @@ impl Select {
         Self {
             selection: None,
             projection: vec![],
-            from: Table::new("".into()), // TODO table name should be overwritable
+            from: None,
         }
     }
 }
@@ -95,9 +101,10 @@ impl Parser {
     fn parse_query(&mut self) -> Statement {
         // RDP
         // projection := "SELECT" <column_list>
-        // column_list := <column> <column_list>
+        // column_list := <column> | <column> <sep> <column_list>
         // column := expr
-        // expr := column_name
+        // expr := ident | ...
+        // sep := , | ...
         //
         // selection := "WHERE" <filter_exp>
         // filter_exp :=
@@ -114,11 +121,19 @@ impl Parser {
                         Keyword::Select => {
                             // parse until end of SELECT, currently include column names, separated by comma tokens
                             // progress index
-                            // query.projection = vec![SelectItem::UnnamedExpr()];
+                            query.projection = vec![SelectItem::UnnamedExpr(Expr::Identifier(
+                                Ident::new("column".into()),
+                            ))];
+                            it.next();
+
+                            // TODO consume tokens for constructing the vector of SelectItems,
+                            // this should occur until we run out of separators or reach another Keyword token such as FROM
                         }
                         Keyword::From => {
                             // parse until end of FROM, this should be a FROM token followed by a table name
                             // progress index
+                            query.from = Some(Table::new("table".into()));
+                            it.next();
                         }
                         Keyword::Where => {
                             // parse until end of WHERE, this should be an expression (which can more 1 or more expression)
@@ -126,11 +141,13 @@ impl Parser {
                         }
                         _ => {
                             // unsupported token
+                            it.next();
                         }
                     }
                 }
                 _ => {
                     //error state, first token must by a Word / Keyword
+                    it.next();
                 }
             }
         }
@@ -141,13 +158,11 @@ impl Parser {
 
 #[cfg(test)]
 mod tests {
-    use std::result;
-
     use super::*;
 
     #[test]
     fn it_works() {
-        let result = Parser::new().parse("select 1".into());
+        let result = Parser::new().parse("select 1 from table_1".into());
 
         println!("{:?}", result);
     }

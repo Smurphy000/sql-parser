@@ -269,7 +269,7 @@ impl Tokenizer {
 
 #[cfg(test)]
 mod tests {
-    use crate::{tokenizer::Word, *};
+    use super::*;
 
     #[test]
     fn multiple_token_types() {
