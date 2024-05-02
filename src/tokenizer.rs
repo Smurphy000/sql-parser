@@ -22,6 +22,7 @@ impl Word {
         Self { value, keyword }
     }
 }
+
 // TODO token may be better as a struct, have a TokenType attribute
 #[derive(Debug, PartialEq, Eq)]
 pub enum Token {
@@ -41,7 +42,23 @@ pub struct Tokenizer {
     input: Rc<str>,
     cursor: u32,
 }
-// For inspiration: https://doc.rust-lang.org/nightly/nightly-rustc/src/rustc_lexer/lib.rs.html
+
+/// Tokenizer for SQL Parser
+///
+/// inspiration: <https://doc.rust-lang.org/nightly/nightly-rustc/src/rustc_lexer/lib.rs.html>
+///
+/// ```rust
+/// # use sql_parser::tokenizer::*;
+/// let mut tokenizer = Tokenizer::new();
+/// tokenizer.init("test string".into());
+/// let tokens = tokenizer.tokenize();
+/// assert_eq!(tokens, vec![
+///     Token::Word(Word::new("TEST".into(), Keyword::NoKeyword)),
+///     Token::Whitespace,
+///     Token::Word(Word::new("STRING".into(), Keyword::NoKeyword)),
+///     Token::EOF
+/// ]);
+/// ```
 impl Tokenizer {
     pub fn new() -> Self {
         Self {
@@ -55,7 +72,8 @@ impl Tokenizer {
         self.cursor = 0;
     }
 
-    // This should take in a generic function which can eat characters of the same type
+    // This function should take in a generic function which can eat characters of the same type.
+    // It also progresses to the input to the character following the String / token
     fn eat_while(&self, it: &mut Peekable<Chars<'_>>, f: fn(char) -> bool) -> String {
         let mut ident = String::new();
         while let Some(&c) = it.peek() {
@@ -70,7 +88,20 @@ impl Tokenizer {
         ident
     }
 
-    // fully processes input in one call, or make this return an iterator
+    /// Consumes Tokenizers input and fully processes into a vector of tokens
+    ///
+    /// ```rust
+    ///  # use sql_parser::tokenizer::*;
+    /// # let mut tokenizer = Tokenizer::new();
+    /// # tokenizer.init("test string".into());
+    /// let tokens = tokenizer.tokenize();
+    /// assert_eq!(tokens, vec![
+    ///     Token::Word(Word::new("TEST".into(), Keyword::NoKeyword)),
+    ///     Token::Whitespace,
+    ///     Token::Word(Word::new("STRING".into(), Keyword::NoKeyword)),
+    ///     Token::EOF
+    /// ]);
+    /// ```
     pub fn tokenize(&mut self) -> Vec<Token> {
         let mut tokens: Vec<Token> = Vec::new();
         let mut it = self.input.chars().peekable();
@@ -78,7 +109,6 @@ impl Tokenizer {
         while let Some(&c) = it.peek() {
             match c {
                 c if c.is_alphabetic() => {
-                    // TODO words should be forced into same casing for matching purposes
                     let word = self
                         .eat_while(&mut it, |c| {
                             if c.is_alphanumeric() || c == '_' {
@@ -98,7 +128,6 @@ impl Tokenizer {
                         // "FROM" => tokens.push(Token::Word(Word::new(word, Keyword::Order))),
                         _ => tokens.push(Token::Word(Word::new(word, Keyword::NoKeyword))),
                     }
-                    // it.next();
                 }
                 c if c.is_numeric() => {
                     let number = self.eat_while(&mut it, |c| {
@@ -148,13 +177,29 @@ impl Tokenizer {
                 }
             }
         }
-        // Finished consuming String, and an EOF
+
+        // TODO should we actually return an EOF token, is it needed?
+        // Finished consuming String, add an EOF
         tokens.push(Token::EOF);
         tokens
     }
 
-    // This function returns an iterator of Tokens, allowing the caller to stream tokens
-    // instead of getting a vec
+    /// tokenize_iter returns an iterator of Tokens, allowing the caller to stream tokens
+    /// instead of getting a vec
+    ///
+    /// this function does not end with an EOF token
+    ///
+    /// ```rust
+    /// # use sql_parser::tokenizer::*;
+    /// # let mut tokenizer = Tokenizer::new();
+    /// # tokenizer.init("test string".into());
+    /// let tokens: Vec<Token> = tokenizer.tokenize_iter().collect();
+    /// assert_eq!(tokens, vec![
+    ///     Token::Word(Word::new("TEST".into(), Keyword::NoKeyword)),
+    ///     Token::Whitespace,
+    ///     Token::Word(Word::new("STRING".into(), Keyword::NoKeyword)),
+    /// ]);
+    /// ```
     pub fn tokenize_iter(&mut self) -> impl Iterator<Item = Token> + '_ {
         std::iter::from_fn(move || {
             let token = self.next_iter();
@@ -175,7 +220,7 @@ impl Tokenizer {
             it.nth((self.cursor - 1) as usize);
         }
 
-        if self.cursor > self.input.len() as u32 {
+        if self.cursor >= self.input.len() as u32 {
             return Token::EOF;
         }
 
@@ -345,6 +390,13 @@ mod tests {
         let result = tokenizer.tokenize_iter();
 
         let vec_result: Vec<Token> = result.collect();
-        println!("{:?}", vec_result);
+        assert_eq!(
+            vec_result,
+            vec![
+                Token::Word(Word::new("ABC".into(), Keyword::NoKeyword)),
+                Token::Whitespace,
+                Token::Number(123)
+            ]
+        );
     }
 }

@@ -15,6 +15,6 @@ https://brunocalza.me/writing-a-simple-lexer-in-rust/
 - [ ] Error handling
   - [ ] Tokenizer
   - [ ] Parser
-- [ ] Doc strings
-- [ ] Parser module
+- [x] Doc strings
+- [x] Parser module
 - [ ] Test coverage
