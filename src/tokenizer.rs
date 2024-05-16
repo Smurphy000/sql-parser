@@ -13,7 +13,7 @@ pub enum Keyword {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct Word {
-    value: String,
+    pub value: String,
     pub keyword: Keyword,
 }
 
